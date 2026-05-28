@@ -31,6 +31,38 @@ async function loadVoteCounts() {
     renderVotes();
   } catch(e) { console.warn('Could not load vote counts from Supabase:', e); }
 }
+function initRealtime(){
+  if(!supabaseClient)return;
+
+  // ── Live vote counts: update bars for every connected client on each INSERT ──
+  supabaseClient
+    .channel('public:votes')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'votes'},(payload)=>{
+      const qi=payload.new.question_id;
+      const ch=payload.new.choice;
+      if(voteCounts[qi]!==undefined&&voteCounts[qi][ch]!==undefined){
+        voteCounts[qi][ch]++;
+        // Only re-render the bar row if this question's bars are already visible
+        const bars=document.getElementById('bars-'+qi);
+        if(bars&&bars.classList.contains('show'))
+          bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
+      }
+    })
+    .subscribe();
+
+  // ── Presence: show how many people are viewing Section 02 right now ──
+  const uid=Math.random().toString(36).slice(2);
+  const presenceCh=supabaseClient.channel('presence:vote-page');
+  presenceCh
+    .on('presence',{event:'sync'},()=>{
+      const n=Object.keys(presenceCh.presenceState()).length;
+      const el=document.getElementById('live-count');
+      if(el)el.textContent=n+(n===1?' person online':' people online');
+    })
+    .subscribe(async(status)=>{
+      if(status==='SUBSCRIBED')await presenceCh.track({uid,joined:Date.now()});
+    });
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -124,7 +156,10 @@ const results=[
 ];
 
 let gIdx=0,gRevealed=false;
-let voteCounts={},voteAnswered={};
+let voteCounts={};
+// Persist voted state across page refreshes
+let voteAnswered={};
+try{voteAnswered=JSON.parse(localStorage.getItem('va')||'{}');}catch(e){}
 let qIdx=0,qAnswers=[],pickedOpt=null;
 let draggedItem=null,touchDragItem=null,touchClone=null;
 let isScratching=false,scratchCtx=null,scratchRevealed=false;
@@ -363,10 +398,11 @@ function renderVotes(){
     div.className='vote-q'+(voteAnswered[i]!==undefined?' answered':'');
     div.id='vq-'+i;
     let btns='';
+    const answered=voteAnswered[i]!==undefined;
     if(q.type==='yn'){
-      btns=`<div class="vote-grid">${q.labels.map((l,j)=>`<button class="vote-btn ${j===0?'yes':'no'}${voteAnswered[i]===j?' picked':''}" onclick="castVote(${i},${j})">${l}</button>`).join('')}</div>`;
+      btns=`<div class="vote-grid">${q.labels.map((l,j)=>`<button class="vote-btn ${j===0?'yes':'no'}${voteAnswered[i]===j?' picked':''}" onclick="castVote(${i},${j})"${answered?' disabled':''}>${l}</button>`).join('')}</div>`;
     } else {
-      btns=`<div class="vote-grid">${q.opts.map((o,j)=>`<button class="vote-btn opt${voteAnswered[i]===j?' picked':''}" onclick="castVote(${i},${j})">${o}</button>`).join('')}</div>`;
+      btns=`<div class="vote-grid">${q.opts.map((o,j)=>`<button class="vote-btn opt${voteAnswered[i]===j?' picked':''}" onclick="castVote(${i},${j})"${answered?' disabled':''}>${o}</button>`).join('')}</div>`;
     }
     div.innerHTML=`<img src="${IMGS[voteImgs[i]]}" class="scene-img" alt="" aria-hidden="true"><div class="vote-body"><div class="q-label">Question ${i+1} of ${voteQs.length}</div><div style="font-size:15px;font-weight:600;color:#F1F5F9;margin-bottom:0.75rem;line-height:1.4">${q.q}</div>${btns}<div class="result-bars${voteAnswered[i]!==undefined?' show':''}" id="bars-${i}">${voteAnswered[i]!==undefined?buildBars(q,voteCounts[i]):''}</div></div>`;
     c.appendChild(div);
@@ -375,20 +411,42 @@ function renderVotes(){
 
 async function castVote(qi,choice){
   if(voteAnswered[qi]!==undefined)return;
+
+  // 1. Lock in answer + persist across reloads
   voteAnswered[qi]=choice;
-  voteCounts[qi][choice]++;
+  try{localStorage.setItem('va',JSON.stringify(voteAnswered));}catch(e){}
+
+  // 2. Immediate visual feedback: mark picked button, disable all buttons for this question
   const vq=document.getElementById('vq-'+qi);
   if(vq){
     vq.classList.add('answered');
-    vq.querySelectorAll('.vote-btn').forEach((b,i)=>{b.classList.remove('picked');if(i===choice)b.classList.add('picked');});
+    vq.querySelectorAll('.vote-btn').forEach((b,j)=>{
+      b.classList.remove('picked');
+      if(j===choice)b.classList.add('picked');
+      b.disabled=true;
+    });
+    // Show bars instantly with current counts; Realtime will tick them up ~100 ms later
     const bars=document.getElementById('bars-'+qi);
     if(bars){bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);bars.classList.add('show');}
   }
-  if(Object.keys(voteAnswered).length===voteQs.length)document.getElementById('vote-done').classList.add('show');
-  // Persist vote to Supabase (fire-and-forget; local state already updated above)
+  if(Object.keys(voteAnswered).length===voteQs.length)
+    document.getElementById('vote-done').classList.add('show');
+
+  // 3. Send to Supabase — the Realtime subscription handles updating counts for everyone
   if(supabaseClient){
     try{await supabaseClient.from('votes').insert({question_id:qi,choice});}
-    catch(e){console.warn('Failed to save vote:',e);}
+    catch(e){
+      console.warn('Vote insert failed, falling back to local count:',e);
+      // Offline fallback: count locally so bars still animate
+      voteCounts[qi][choice]++;
+      const bars=document.getElementById('bars-'+qi);
+      if(bars)bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
+    }
+  }else{
+    // No Supabase configured: count locally
+    voteCounts[qi][choice]++;
+    const bars=document.getElementById('bars-'+qi);
+    if(bars)bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
   }
 }
 function buildBars(q,counts){
@@ -463,4 +521,6 @@ renderGuess();
 renderVotes();
 renderQuizSteps();
 renderQuiz();
-loadVoteCounts();
+// Load real counts first, then open the Realtime channel so we never
+// miss a vote that arrives between the initial fetch and the subscription.
+loadVoteCounts().then(initRealtime);

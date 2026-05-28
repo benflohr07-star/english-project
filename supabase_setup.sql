@@ -34,14 +34,21 @@ CREATE POLICY "Public insert"
   );
 
 -- ============================================================
--- 3. (Optional) Seed with zeros so every option always exists
---    Only needed if you query by question_id+choice with a
---    separate aggregate table. For the current JS approach
---    (SELECT * then count in-memory) this is not required.
+-- 3. Enable Realtime — REQUIRED for live bar chart updates
+--    Without this, postgres_changes events will not fire.
 -- ============================================================
+ALTER PUBLICATION supabase_realtime ADD TABLE votes;
+
+-- Also add a DELETE policy so old test rows can be cleaned up
+-- (optional — only needed if you want to delete rows via the anon key)
+CREATE POLICY "Public delete"
+  ON votes FOR DELETE
+  USING (true);
 
 -- ============================================================
 -- 4. Verify setup
 -- ============================================================
 -- SELECT * FROM votes LIMIT 5;
 -- SELECT question_id, choice, COUNT(*) FROM votes GROUP BY 1,2 ORDER BY 1,2;
+-- Check Realtime is active:
+-- SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
