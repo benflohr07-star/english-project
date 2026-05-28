@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Stereotypes in Movies &amp; Childhood</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="site">
+
+  <div class="hero">
+    <div class="hero-badge"><i class="ti ti-movie" aria-hidden="true"></i> English Project · TFG Düsseldorf</div>
+    <h1>Stereotypes in Movies &amp; Childhood</h1>
+    <p>Three interactive sections · ~5 minutes · have fun with it</p>
+  </div>
+
+  <div class="nav-wrap">
+    <div class="nav">
+      <button class="nav-btn active" onclick="showSection('s1')"><i class="ti ti-chart-bar" aria-hidden="true"></i> Guess</button>
+      <button class="nav-btn" onclick="showSection('s2')"><i class="ti ti-thumb-up" aria-hidden="true"></i> Vote</button>
+      <button class="nav-btn" onclick="showSection('s3')"><i class="ti ti-user" aria-hidden="true"></i> Quiz</button>
+    </div>
+  </div>
+
+  <div id="s1" class="section visible">
+    <div class="sec-head">
+      <div class="sec-badge blue"><i class="ti ti-chart-bar" aria-hidden="true"></i> Section 01 · 8 questions</div>
+      <h2>Guess the stat</h2>
+      <p>Slider, scratch card, tap — every question feels different. How close can you get?</p>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="g-prog" style="width:12%"></div></div>
+    <div id="guess-container"></div>
+    <div class="g-footer">
+      <span class="g-counter" id="g-counter">Question 1 of 8</span>
+      <button class="btn btn-blue btn-sm" id="g-next-btn" onclick="nextGuess()" style="display:none">Next <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+    </div>
+  </div>
+
+  <div id="s2" class="section">
+    <div class="sec-head">
+      <div class="sec-badge green"><i class="ti ti-thumb-up" aria-hidden="true"></i> Section 02 · 6 questions</div>
+      <h2>Quick vote</h2>
+      <p>Answer honestly — results appear instantly after you pick.</p>
+    </div>
+    <div id="vote-container"></div>
+    <div class="done-banner" id="vote-done"><p>All done! Head to Section 03 for your personal result →</p></div>
+  </div>
+
+  <div id="s3" class="section">
+    <div class="sec-head">
+      <div class="sec-badge amber"><i class="ti ti-user" aria-hidden="true"></i> Section 03 · 7 questions</div>
+      <h2>What type are you?</h2>
+      <p>Answer 7 questions about your childhood. Get a personalised result at the end.</p>
+    </div>
+    <div class="steps-row" id="quiz-steps"></div>
+    <div id="quiz-container"></div>
+    <div id="quiz-result" style="display:none"></div>
+  </div>
+
+</div>
+
+<!-- Supabase JS client (loaded before app.js so supabase.createClient is available) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
