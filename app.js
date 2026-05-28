@@ -187,6 +187,32 @@ function showSection(id){
   document.querySelectorAll('.nav-btn').forEach((b,i)=>b.classList.toggle('active',['s1','s2','s3'][i]===id));
 }
 
+function triggerConfetti(){
+  if(typeof confetti==='undefined')return;
+  // First burst — main shower from center
+  confetti({
+    particleCount:80,
+    spread:70,
+    origin:{x:0.5,y:0.58},
+    colors:['#60A5FA','#34D399','#FCD34D','#A78BFA','#F9A8D4'],
+    startVelocity:30,
+    decay:0.88,
+    gravity:1.1,
+    scalar:0.95
+  });
+  // Second softer burst 200 ms later for depth
+  setTimeout(()=>confetti({
+    particleCount:40,
+    spread:55,
+    origin:{x:0.5,y:0.62},
+    colors:['#60A5FA','#34D399','#FCD34D'],
+    startVelocity:18,
+    decay:0.9,
+    gravity:1,
+    scalar:0.8
+  }),200);
+}
+
 function renderGuess(){
   // ── Name prompt: shown once before the first question ──────────────────────
   if(!playerName){
@@ -297,6 +323,7 @@ function lockSlider(){
   else if(pctOff<0.25){cls='close';lbl='Pretty close!';}
   else{cls='wrong';lbl='Not quite —';}
   gScores[gIdx]=cls==='correct'?100:cls==='close'?50:10;
+  if(cls==='correct')triggerConfetti();
   const box=document.getElementById('g-reveal');
   box.className='reveal-box '+cls+' show';
   box.innerHTML=`<div class="reveal-num">${q.answer} ${q.unit}</div><div class="reveal-text">${lbl} ${q.hint}</div><div class="reveal-source">Source: ${q.source}</div>`;
@@ -375,6 +402,7 @@ function tapAnswer(btn,correct,correctIdx){
   const q=guessQs[gIdx];
   const box=document.getElementById('g-reveal');
   gScores[gIdx]=correct?100:10;
+  if(correct)triggerConfetti();
   box.className='reveal-box '+(correct?'correct':'wrong')+' show';
   box.innerHTML=`<div class="reveal-num">${q.opts[q.answerIdx]}</div><div class="reveal-text">${correct?'Correct! ':'Wrong. '}${q.hint}</div><div class="reveal-source">Source: ${q.source}</div>`;
   showNextBtn();
