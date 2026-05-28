@@ -50,6 +50,19 @@ function initRealtime(){
     })
     .subscribe();
 
+  // ── Live leaderboard: reload on every INSERT or DELETE ──
+  supabaseClient
+    .channel('public:leaderboard')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'leaderboard'},()=>{
+      const lb=document.getElementById('leaderboard-section');
+      if(lb&&lb.style.display!=='none')loadLeaderboard();
+    })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'leaderboard'},()=>{
+      const lb=document.getElementById('leaderboard-section');
+      if(lb&&lb.style.display!=='none')loadLeaderboard();
+    })
+    .subscribe();
+
   // ── Presence: show how many people are viewing Section 02 right now ──
   const uid=Math.random().toString(36).slice(2);
   const presenceCh=supabaseClient.channel('presence:vote-page');
@@ -156,6 +169,10 @@ const results=[
 ];
 
 let gIdx=0,gRevealed=false;
+let gScores=[];          // points earned per question (index = question index)
+let gDragScore=0;        // running tally for the current drag question
+let myLeaderboardId=null;// Supabase row id of this session's leaderboard entry
+let playerName=localStorage.getItem('guestName')||'';
 let voteCounts={};
 // Persist voted state across page refreshes
 let voteAnswered={};
@@ -171,6 +188,27 @@ function showSection(id){
 }
 
 function renderGuess(){
+  // ── Name prompt: shown once before the first question ──────────────────────
+  if(!playerName){
+    document.getElementById('g-prog').style.width='0%';
+    document.getElementById('g-counter').textContent='Enter your name to start';
+    document.getElementById('g-next-btn').style.display='none';
+    document.getElementById('guess-container').innerHTML=`<div class="card glow-blue"><div class="card-body">
+      <div class="q-label">Before you start</div>
+      <div class="q-text">What's your first name?</div>
+      <p style="font-size:13px;color:#64748B;line-height:1.6;margin-bottom:1.25rem">It'll show up on the class leaderboard after all 8 questions.</p>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="name-input" placeholder="First name…" maxlength="20" autocomplete="off"
+          style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid #334155;background:#0F172A;color:#F1F5F9;font-size:14px;font-family:inherit;outline:none"
+          onkeydown="if(event.key==='Enter')saveName()">
+        <button class="btn btn-blue" onclick="saveName()">Let's go <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+      </div>
+    </div></div>`;
+    setTimeout(()=>{const i=document.getElementById('name-input');if(i)i.focus();},60);
+    return;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+  gDragScore=0; // reset drag tally for each new question
   const q=guessQs[gIdx];
   const pct=Math.round(((gIdx+1)/guessQs.length)*100);
   document.getElementById('g-prog').style.width=pct+'%';
@@ -237,6 +275,16 @@ function renderGuess(){
   if(q.type==='scratch') setTimeout(initScratch,80);
 }
 
+function saveName(){
+  const input=document.getElementById('name-input');
+  if(!input)return;
+  const n=input.value.trim().replace(/[<>]/g,'').slice(0,20);
+  if(!n)return;
+  playerName=n;
+  localStorage.setItem('guestName',n);
+  renderGuess();
+}
+
 function lockSlider(){
   if(gRevealed)return; gRevealed=true;
   const q=guessQs[gIdx];
@@ -248,6 +296,7 @@ function lockSlider(){
   if(pctOff<0.08){cls='correct';lbl='Spot on!';}
   else if(pctOff<0.25){cls='close';lbl='Pretty close!';}
   else{cls='wrong';lbl='Not quite —';}
+  gScores[gIdx]=cls==='correct'?100:cls==='close'?50:10;
   const box=document.getElementById('g-reveal');
   box.className='reveal-box '+cls+' show';
   box.innerHTML=`<div class="reveal-num">${q.answer} ${q.unit}</div><div class="reveal-text">${lbl} ${q.hint}</div><div class="reveal-source">Source: ${q.source}</div>`;
@@ -311,7 +360,7 @@ function checkScratch(canvas){
     document.getElementById('sc-hint').textContent='Source: '+q.source;
     const box=document.getElementById('g-reveal');
     if(box){box.className='reveal-box correct show';box.innerHTML=`<div class="reveal-text">${q.hint}</div>`;}
-    if(!gRevealed){gRevealed=true;showNextBtn();}
+    if(!gRevealed){gRevealed=true;gScores[gIdx]=50;showNextBtn();}
   }
 }
 
@@ -325,6 +374,7 @@ function tapAnswer(btn,correct,correctIdx){
   btn.classList.add(correct?'correct':'wrong');
   const q=guessQs[gIdx];
   const box=document.getElementById('g-reveal');
+  gScores[gIdx]=correct?100:10;
   box.className='reveal-box '+(correct?'correct':'wrong')+' show';
   box.innerHTML=`<div class="reveal-num">${q.opts[q.answerIdx]}</div><div class="reveal-text">${correct?'Correct! ':'Wrong. '}${q.hint}</div><div class="reveal-source">Source: ${q.source}</div>`;
   showNextBtn();
@@ -338,6 +388,7 @@ function onDrop(e,zone){
   e.currentTarget.classList.remove('over');
   if(!draggedItem)return;
   const correct=draggedItem.dataset.cat===zone;
+  if(correct)gDragScore+=15;
   const d=document.createElement('div');
   d.className='dropped '+(correct?'right':'wrong-d');
   d.textContent=draggedItem.textContent.trim();
@@ -346,6 +397,7 @@ function onDrop(e,zone){
   draggedItem=null;
   const pool=document.getElementById('drag-pool');
   if(pool&&pool.querySelectorAll('.drag-item:not(.used)').length===0){
+    gScores[gIdx]=gDragScore;
     document.getElementById('drag-msg').textContent='All sorted! Green = correct, red = wrong placement.';
     if(!gRevealed){gRevealed=true;showNextBtn();}
   }
@@ -382,11 +434,84 @@ function showNextBtn(){
   const nb=document.getElementById('g-next-btn');
   if(!nb)return;
   nb.style.display='flex';
-  nb.innerHTML=gIdx<guessQs.length-1?'Next <i class="ti ti-arrow-right" aria-hidden="true"></i>':'Go to Section 02 <i class="ti ti-arrow-right" aria-hidden="true"></i>';
+  if(gIdx<guessQs.length-1){
+    nb.onclick=nextGuess;
+    nb.innerHTML='Next <i class="ti ti-arrow-right" aria-hidden="true"></i>';
+  }else{
+    nb.onclick=finishGuess;
+    nb.innerHTML='See my score <i class="ti ti-trophy" aria-hidden="true"></i>';
+  }
 }
 function nextGuess(){
   if(gIdx<guessQs.length-1){gIdx++;renderGuess();}
-  else showSection('s2');
+}
+
+async function finishGuess(){
+  const total=gScores.reduce((a,b)=>a+(b||0),0);
+  // Reveal leaderboard card
+  const lb=document.getElementById('leaderboard-section');
+  if(lb){
+    lb.style.display='block';
+    document.getElementById('lb-total').textContent=total;
+    // Breakdown line: Q1:100 · Q2:50 · …
+    const medals=['🥇','🥈','🥉'];
+    const breakdown=gScores.map((s,i)=>{
+      const q=guessQs[i];
+      const label=q.type==='drag'?'Drag':q.type==='scratch'?'Scratch':q.type==='tap'?'Tap':'Slider';
+      return`<span class="score-chip ${s>=100?'chip-gold':s>=50?'chip-silver':'chip-bronze'}">${label}: ${s||0}</span>`;
+    }).join('');
+    document.getElementById('lb-breakdown').innerHTML=breakdown;
+    setTimeout(()=>lb.scrollIntoView({behavior:'smooth',block:'start'}),80);
+  }
+  // Save to Supabase
+  if(supabaseClient&&playerName){
+    try{
+      const{data,error}=await supabaseClient
+        .from('leaderboard').insert({name:playerName,score:total}).select('id');
+      if(!error&&data&&data[0])myLeaderboardId=data[0].id;
+    }catch(e){console.warn('Score save failed:',e);}
+  }
+  loadLeaderboard();
+}
+
+async function loadLeaderboard(){
+  if(!supabaseClient)return;
+  try{
+    const{data}=await supabaseClient
+      .from('leaderboard').select('id,name,score')
+      .order('score',{ascending:false}).limit(10);
+    renderLeaderboard(data||[]);
+  }catch(e){console.warn('Leaderboard fetch failed:',e);}
+}
+
+function renderLeaderboard(rows){
+  const el=document.getElementById('lb-rows');
+  if(!el)return;
+  if(!rows.length){
+    el.innerHTML='<div class="lb-empty">No scores yet — be the first!</div>';
+    return;
+  }
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML=rows.map((r,i)=>{
+    const isMe=r.id!==null&&r.id===myLeaderboardId;
+    return`<div class="lb-row${isMe?' lb-me':''}">
+      <span class="lb-rank">${medals[i]||'#'+(i+1)}</span>
+      <span class="lb-name">${r.name}${isMe?' <span class="lb-you">you</span>':''}</span>
+      <span class="lb-score">${r.score}<span class="lb-pts">pts</span></span>
+    </div>`;
+  }).join('');
+}
+
+async function adminReset(){
+  const pw=prompt('Admin password:');
+  if(!pw)return;
+  if(!supabaseClient){alert('Supabase not connected.');return;}
+  try{
+    const{error}=await supabaseClient.rpc('reset_leaderboard',{admin_pass:pw});
+    if(error)throw error;
+    myLeaderboardId=null;
+    loadLeaderboard();
+  }catch(e){alert('Reset failed: '+(e.message||'Wrong password'));}
 }
 
 function renderVotes(){

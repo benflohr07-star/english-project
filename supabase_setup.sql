@@ -46,7 +46,43 @@ CREATE POLICY "Public delete"
   USING (true);
 
 -- ============================================================
--- 4. Verify setup
+-- 4. Leaderboard table (Section 01 — Guess the stat)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS leaderboard (
+  id         BIGSERIAL PRIMARY KEY,
+  name       TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 20),
+  score      INTEGER NOT NULL CHECK (score >= 0 AND score <= 900),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_leaderboard_score
+  ON leaderboard (score DESC);
+
+ALTER TABLE leaderboard ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read lb"
+  ON leaderboard FOR SELECT USING (true);
+
+CREATE POLICY "Public insert lb"
+  ON leaderboard FOR INSERT WITH CHECK (true);
+
+-- Enable Realtime for live leaderboard updates
+ALTER PUBLICATION supabase_realtime ADD TABLE leaderboard;
+
+-- Admin reset function — change 'teacher2025' to your own password
+CREATE OR REPLACE FUNCTION reset_leaderboard(admin_pass TEXT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF admin_pass = 'teacher2025' THEN
+    DELETE FROM leaderboard;
+  ELSE
+    RAISE EXCEPTION 'Unauthorized: wrong admin password';
+  END IF;
+END;
+$$;
+
+-- ============================================================
+-- 5. Verify setup
 -- ============================================================
 -- SELECT * FROM votes LIMIT 5;
 -- SELECT question_id, choice, COUNT(*) FROM votes GROUP BY 1,2 ORDER BY 1,2;

@@ -36,6 +36,26 @@
       <span class="g-counter" id="g-counter">Question 1 of 8</span>
       <button class="btn btn-blue btn-sm" id="g-next-btn" onclick="nextGuess()" style="display:none">Next <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
     </div>
+
+    <!-- Leaderboard — hidden until all 8 questions are answered -->
+    <div id="leaderboard-section" style="display:none;margin-top:1.5rem">
+      <div class="card glow-blue">
+        <div class="card-body">
+          <div class="lb-header">
+            <div>
+              <div class="q-label">Your total score</div>
+              <div class="lb-score-big"><span id="lb-total">0</span><span class="lb-pts-big">pts</span></div>
+            </div>
+            <button class="btn btn-sm" onclick="adminReset()" title="Admin: clear all scores" style="opacity:0.4;font-size:11px">
+              <i class="ti ti-trash" aria-hidden="true"></i> Reset
+            </button>
+          </div>
+          <div id="lb-breakdown" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;margin-bottom:1.25rem"></div>
+          <div class="q-label" style="margin-bottom:10px">🏆 Class Leaderboard — Top 10</div>
+          <div id="lb-rows"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="s2" class="section">

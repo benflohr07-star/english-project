@@ -131,3 +131,20 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 .presence-bar{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#34D399;padding:3px 10px;border-radius:8px;background:#06543620;border:1px solid #06543640;white-space:nowrap}
 .presence-dot{width:7px;height:7px;border-radius:50%;background:#34D399;flex-shrink:0;animation:pulse-dot 2s ease-in-out infinite}
 @keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,0.5)}60%{opacity:.85;box-shadow:0 0 0 5px rgba(52,211,153,0)}}
+/* ── Leaderboard ─────────────────────────────────────────────────────────── */
+.lb-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.lb-score-big{font-size:52px;font-weight:800;color:#60A5FA;line-height:1;letter-spacing:-2px}
+.lb-pts-big{font-size:16px;font-weight:600;color:#475569;margin-left:4px;vertical-align:middle}
+.lb-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:4px;background:#0F172A;transition:background 0.2s}
+.lb-row.lb-me{background:#0c1d3d;outline:2px solid #2563EB;outline-offset:-1px}
+.lb-rank{font-size:17px;min-width:30px;text-align:center}
+.lb-name{flex:1;font-size:14px;font-weight:500;color:#CBD5E1;display:flex;align-items:center;gap:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lb-you{font-size:10px;font-weight:700;background:#2563EB;color:#fff;padding:1px 7px;border-radius:4px;letter-spacing:.05em;flex-shrink:0}
+.lb-score{font-size:15px;font-weight:700;color:#60A5FA}
+.lb-pts{font-size:10px;font-weight:400;color:#475569;margin-left:2px}
+.lb-empty{text-align:center;color:#475569;font-size:13px;padding:1.5rem 0}
+/* Score breakdown chips */
+.score-chip{display:inline-flex;font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px;letter-spacing:.02em}
+.chip-gold{background:#3d2e00;color:#FCD34D;border:1px solid #92400E60}
+.chip-silver{background:#1c2a1c;color:#6EE7B7;border:1px solid #06543660}
+.chip-bronze{background:#1c0d0d;color:#FCA5A5;border:1px solid #7f1d1d60}
