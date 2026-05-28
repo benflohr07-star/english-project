@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin · Stereotypes Project</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- ── Password gate ──────────────────────────────────────────────────── -->
+  <div id="auth-gate">
+    <div class="auth-card">
+      <div class="auth-logo">🎛</div>
+      <h1 class="auth-title">Admin Dashboard</h1>
+      <p class="auth-sub">Stereotypes in Movies &amp; Childhood</p>
+      <input type="password" id="pw-input" placeholder="Password"
+        onkeydown="if(event.key==='Enter')checkPassword()">
+      <button class="auth-btn" onclick="checkPassword()">Enter</button>
+      <p class="auth-error" id="pw-error"></p>
+    </div>
+  </div>
+
+  <!-- ── Dashboard ──────────────────────────────────────────────────────── -->
+  <div id="dashboard" style="display:none">
+
+    <header class="dash-header">
+      <div class="dash-title">
+        <span class="dash-icon">🎛</span>
+        <div>
+          <div class="dash-name">Admin Dashboard</div>
+          <div class="dash-sub">Stereotypes in Movies &amp; Childhood</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="presence-pill">
+          <span class="presence-dot"></span>
+          <span id="active-count">0</span> online
+        </div>
+        <button class="reset-btn" onclick="resetAll()">
+          🗑 Reset All
+        </button>
+      </div>
+    </header>
+
+    <main class="dash-main">
+
+      <!-- Row 1: Active users + Live feed -->
+      <div class="row-2">
+        <div class="card">
+          <div class="card-label">Active Users</div>
+          <div class="big-num" id="active-count-big">0</div>
+          <p class="card-sub">people on the site right now</p>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Live Activity Feed</div>
+          <div id="event-feed" class="event-feed">
+            <div class="feed-empty">Waiting for activity…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Live Votes (full width) -->
+      <div class="card">
+        <div class="card-header-row">
+          <div class="card-label">Section 02 — Live Votes</div>
+          <div class="card-badge" id="vote-total-badge">0 votes total</div>
+        </div>
+        <div id="vote-feed" class="vote-grid"></div>
+      </div>
+
+      <!-- Row 3: Quiz results + Leaderboard -->
+      <div class="row-2">
+        <div class="card">
+          <div class="card-header-row">
+            <div class="card-label">Section 03 — Quiz Results</div>
+            <div class="card-badge" id="quiz-total-badge">0 results</div>
+          </div>
+          <div id="quiz-feed"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Section 01 — Leaderboard</div>
+          <div id="lb-feed"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

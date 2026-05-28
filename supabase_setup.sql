@@ -82,7 +82,41 @@ END;
 $$;
 
 -- ============================================================
--- 5. Verify setup
+-- 5. Quiz results table (Section 03 — What type are you?)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quiz_results (
+  id          BIGSERIAL PRIMARY KEY,
+  result_type TEXT NOT NULL
+    CHECK (result_type IN ('Freethinker','Classic','Rebel','Unaware')),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE quiz_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read qr"   ON quiz_results FOR SELECT USING (true);
+CREATE POLICY "Public insert qr" ON quiz_results FOR INSERT WITH CHECK (true);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE quiz_results;
+
+-- ============================================================
+-- 6. Combined admin reset (votes + quiz_results + leaderboard)
+--    Called from the admin dashboard — change password below
+-- ============================================================
+CREATE OR REPLACE FUNCTION reset_all(admin_pass TEXT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF admin_pass = 'teacher2025' THEN
+    DELETE FROM votes;
+    DELETE FROM quiz_results;
+    DELETE FROM leaderboard;
+  ELSE
+    RAISE EXCEPTION 'Unauthorized: wrong admin password';
+  END IF;
+END;
+$$;
+
+-- ============================================================
+-- 7. Verify setup
 -- ============================================================
 -- SELECT * FROM votes LIMIT 5;
 -- SELECT question_id, choice, COUNT(*) FROM votes GROUP BY 1,2 ORDER BY 1,2;

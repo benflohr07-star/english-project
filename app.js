@@ -65,7 +65,7 @@ function initRealtime(){
 
   // ── Presence: show how many people are viewing Section 02 right now ──
   const uid=Math.random().toString(36).slice(2);
-  const presenceCh=supabaseClient.channel('presence:vote-page');
+  const presenceCh=supabaseClient.channel('presence:site');
   presenceCh
     .on('presence',{event:'sync'},()=>{
       const n=Object.keys(presenceCh.presenceState()).length;
@@ -654,6 +654,10 @@ function showResult(){
   else if((a[1]===0||a[1]===1)&&a[4]===0&&a[6]===0)r=results[1];
   else if(a[4]===1||a[1]===2)r=results[2];
   else r=results[3];
+  // Save quiz result to Supabase for the admin dashboard
+  if(supabaseClient)
+    supabaseClient.from('quiz_results').insert({result_type:r.title})
+      .catch(e=>console.warn('Quiz result save failed:',e));
   const rc=document.getElementById('quiz-result');
   rc.style.display='block';
   rc.innerHTML=`<div class="result-card">
