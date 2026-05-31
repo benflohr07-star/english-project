@@ -790,6 +790,9 @@ function showResult(){
     });
   }
 
+  // Collect human-readable answers for AI analysis
+  const humanAnswers=quizQs.map((q,i)=>({question:q.q,answer:q.opts[qAnswers[i]]??'—'}));
+
   // Render result card
   const rc=document.getElementById('quiz-result');
   rc.style.display='block';
@@ -802,12 +805,65 @@ function showResult(){
       <div class="result-traits">${r.traits.map(t=>`<span class="trait">${t}</span>`).join('')}</div>
       <button class="btn btn-sm" onclick="resetQuiz()"><i class="ti ti-refresh" aria-hidden="true"></i> Try again</button>
     </div>
+  </div>
+  <div class="analysis-card">
+    <div class="analysis-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI Personal Analysis</div>
+    <div class="analysis-card-body">
+      <div id="analysis-dots" class="typing-dots">
+        <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+      </div>
+      <p id="analysis-text" class="analysis-text" style="display:none"></p>
+      <p id="analysis-fallback" class="analysis-fallback" style="display:none">✦ The analysis couldn't load right now — but your result above already says a lot. Reflect on how those childhood experiences shaped who you are today.</p>
+    </div>
   </div>`;
   // Scroll the result into view so it's always visible on small screens
   rc.scrollIntoView({behavior:'smooth', block:'start'});
   for(let i=0;i<quizQs.length;i++){const d=document.getElementById('sd-'+i);if(d)d.className='step-dot done';}
+  // Fire-and-forget AI analysis — never blocks the result card
+  streamAnalysis(humanAnswers,resultKey);
 }
 function resetQuiz(){qIdx=0;qAnswers=[];pickedOpt=null;renderQuizSteps();renderQuiz();document.getElementById('quiz-result').style.display='none';}
+
+// ── AI streaming analysis ─────────────────────────────────────────────────
+async function streamAnalysis(humanAnswers,resultType){
+  const TIMEOUT_MS=10000;
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),TIMEOUT_MS);
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/generate-analysis',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON_KEY},
+      body:JSON.stringify({answers:humanAnswers,resultType}),
+      signal:ctrl.signal,
+    });
+    clearTimeout(timer);
+    if(!res.ok||!res.body)throw new Error('status '+res.status);
+    // Hide dots, show text container
+    const dots=document.getElementById('analysis-dots');
+    if(dots)dots.style.display='none';
+    const textEl=document.getElementById('analysis-text');
+    if(textEl){textEl.style.display='block';textEl.textContent='';}
+    // Stream chunks into the paragraph
+    const reader=res.body.getReader();
+    const dec=new TextDecoder();
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      const el=document.getElementById('analysis-text');
+      if(!el)break; // user hit "Try again" mid-stream
+      el.textContent+=dec.decode(value,{stream:true});
+    }
+  }catch(e){
+    clearTimeout(timer);
+    const dots=document.getElementById('analysis-dots');
+    if(dots)dots.style.display='none';
+    const textEl=document.getElementById('analysis-text');
+    if(textEl)textEl.style.display='none';
+    const fb=document.getElementById('analysis-fallback');
+    if(fb)fb.style.display='block';
+    console.warn('[Analysis] Stream failed:',e&&e.message||e);
+  }
+}
 
 renderGuess();
 renderVotes();
