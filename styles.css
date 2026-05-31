@@ -1,4 +1,5 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+#bg-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:block;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0F172A;min-height:100vh;color:#F1F5F9}
 .site{max-width:480px;margin:0 auto;padding:0 0 5rem}
 .hero{background:#1E293B;padding:2rem 1.25rem 1.5rem;text-align:center;border-bottom:1px solid #334155}

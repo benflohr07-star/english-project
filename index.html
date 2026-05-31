@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Stereotypes in Movies &amp; Childhood</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
 <div class="site">
 
   <div class="hero">
@@ -87,9 +88,11 @@
 
 </div>
 
+<!-- Canvas background (must load before app.js) -->
+<script src="bg.js?v=6"></script>
 <!-- Supabase JS client (loaded before app.js so supabase.createClient is available) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
