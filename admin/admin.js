@@ -270,3 +270,188 @@ async function resetAll() {
     alert('Reset failed: ' + (e.message || 'Wrong password'));
   }
 }
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Show/hide the loading spinner on an export button.
+ * Saves the original innerHTML in data-label so it can be restored.
+ */
+function setBtnLoading(id, loading) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  if (loading) {
+    btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Fetching…';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn.dataset.label || btn.innerHTML;
+    btn.disabled = false;
+  }
+}
+
+/**
+ * Build a properly-escaped CSV string and trigger a browser download.
+ * Prepends a UTF-8 BOM so Excel opens accented characters correctly.
+ * @param {string}   filename  e.g. 'votes-export.csv'
+ * @param {Array[]}  rows      2-D array of cells (first row = headers)
+ */
+function downloadCSV(filename, rows) {
+  const csv = rows.map(row =>
+    row.map(cell => {
+      const s = String(cell ?? '');
+      // Wrap in quotes if the cell contains a comma, quote, or newline
+      return (s.includes(',') || s.includes('"') || s.includes('\n'))
+        ? '"' + s.replace(/"/g, '""') + '"'
+        : s;
+    }).join(',')
+  ).join('\r\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: filename,
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Export 1: Votes as CSV ────────────────────────────────────────────────────
+
+async function exportVotesCSV() {
+  setBtnLoading('btn-export-votes', true);
+  try {
+    const { data, error } = await db
+      .from('votes')
+      .select('question_id, choice, created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+
+    const headers = ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Timestamp (UTC)'];
+    const rows = data.map(r => [
+      r.question_id + 1,
+      VOTE_META[r.question_id]?.q     ?? `Question ${r.question_id + 1}`,
+      r.choice + 1,
+      VOTE_META[r.question_id]?.opts[r.choice] ?? `Option ${r.choice + 1}`,
+      r.created_at,
+    ]);
+
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCSV(`votes-export-${date}.csv`, [headers, ...rows]);
+    pushEvent(`<span class="ev-tag ev-vote">Export</span> Votes CSV — ${data.length} rows`);
+  } catch (e) {
+    alert('Votes export failed: ' + (e.message || e));
+  } finally {
+    setBtnLoading('btn-export-votes', false);
+  }
+}
+
+// ── Export 2: Quiz Results as CSV ─────────────────────────────────────────────
+
+async function exportQuizCSV() {
+  setBtnLoading('btn-export-quiz', true);
+  try {
+    const { data, error } = await db
+      .from('quiz_results')
+      .select('result_type, created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+
+    // Count per type for the summary block
+    const counts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
+    data.forEach(r => { if (r.result_type in counts) counts[r.result_type]++; });
+
+    const headers  = ['Result Type', 'Timestamp (UTC)'];
+    const dataRows = data.map(r => [r.result_type, r.created_at]);
+    const summary  = [
+      [],
+      ['── Summary ──', ''],
+      ...Object.entries(counts).map(([type, n]) => [type, n]),
+      ['Total', data.length],
+    ];
+
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCSV(`quiz-results-export-${date}.csv`, [headers, ...dataRows, ...summary]);
+    pushEvent(`<span class="ev-tag ev-quiz">Export</span> Quiz CSV — ${data.length} results`);
+  } catch (e) {
+    alert('Quiz export failed: ' + (e.message || e));
+  } finally {
+    setBtnLoading('btn-export-quiz', false);
+  }
+}
+
+// ── Export 3: Full Excel workbook (Votes + Quiz + Leaderboard) ────────────────
+
+async function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('SheetJS library not loaded — please refresh the page and try again.');
+    return;
+  }
+  setBtnLoading('btn-export-excel', true);
+  try {
+    // Fetch all three datasets in parallel
+    const [votesRes, quizRes, lbRes] = await Promise.all([
+      db.from('votes')
+        .select('question_id, choice, created_at')
+        .order('created_at', { ascending: true }),
+      db.from('quiz_results')
+        .select('result_type, created_at')
+        .order('created_at', { ascending: true }),
+      db.from('leaderboard')
+        .select('name, score, created_at')
+        .order('score', { ascending: false }),
+    ]);
+    if (votesRes.error) throw new Error('Votes: '    + votesRes.error.message);
+    if (quizRes.error)  throw new Error('Quiz: '     + quizRes.error.message);
+    if (lbRes.error)    throw new Error('Leaderboard: ' + lbRes.error.message);
+
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Votes ────────────────────────────────────────────────────────
+    const votesSheet = [
+      ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Timestamp (UTC)'],
+      ...votesRes.data.map(r => [
+        r.question_id + 1,
+        VOTE_META[r.question_id]?.q              ?? `Question ${r.question_id + 1}`,
+        r.choice + 1,
+        VOTE_META[r.question_id]?.opts[r.choice] ?? `Option ${r.choice + 1}`,
+        r.created_at,
+      ]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(votesSheet), 'Votes');
+
+    // ── Sheet 2: Quiz Results (with summary block) ────────────────────────────
+    const qCounts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
+    quizRes.data.forEach(r => { if (r.result_type in qCounts) qCounts[r.result_type]++; });
+
+    const quizSheet = [
+      ['Result Type', 'Timestamp (UTC)'],
+      ...quizRes.data.map(r => [r.result_type, r.created_at]),
+      [],
+      ['── Summary ──', ''],
+      ...Object.entries(qCounts).map(([type, n]) => [type, n]),
+      ['Total', quizRes.data.length],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(quizSheet), 'Quiz Results');
+
+    // ── Sheet 3: Leaderboard ──────────────────────────────────────────────────
+    const lbSheet = [
+      ['Rank', 'Name', 'Score (pts)', 'Submitted At (UTC)'],
+      ...lbRes.data.map((r, i) => [i + 1, r.name, r.score, r.created_at]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lbSheet), 'Leaderboard');
+
+    // Download
+    const date = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `stereotypes-project-export-${date}.xlsx`);
+
+    const total = votesRes.data.length + quizRes.data.length + lbRes.data.length;
+    pushEvent(`<span class="ev-tag ev-lb">Export</span> Excel — ${total} rows across 3 sheets`);
+  } catch (e) {
+    alert('Excel export failed: ' + (e.message || e));
+  } finally {
+    setBtnLoading('btn-export-excel', false);
+  }
+}

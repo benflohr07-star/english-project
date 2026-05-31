@@ -316,9 +316,64 @@ html, body {
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lb-score { font-size: 14px; font-weight: 700; color: var(--blue-lt); }
 
+/* ── Data export ─────────────────────────────────────────────────────────── */
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.export-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, .08);
+  border-color: var(--blue);
+  color: var(--blue-lt);
+}
+.export-btn:active:not(:disabled) { transform: scale(0.97); }
+.export-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Excel button gets a green tint */
+.export-btn-excel { border-color: rgba(52, 211, 153, 0.25); color: var(--green-lt); }
+.export-btn-excel:hover:not(:disabled) {
+  background: rgba(52, 211, 153, .08);
+  border-color: var(--green-lt);
+  color: var(--green-lt);
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width:  13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 500px) {
   .dash-header { flex-wrap: wrap; gap: 8px; }
   .big-num     { font-size: 56px; }
   .dash-main   { padding: 1rem; gap: .875rem; }
+  .export-row  { flex-direction: column; }
+  .export-btn  { justify-content: center; }
 }

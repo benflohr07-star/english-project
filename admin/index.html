@@ -86,10 +86,31 @@
         </div>
       </div>
 
+      <!-- Row 4: Data Export -->
+      <div class="card">
+        <div class="card-header-row">
+          <div class="card-label">Data Export</div>
+          <span class="card-sub" style="font-size:11px">All data fetched live from Supabase</span>
+        </div>
+        <div class="export-row">
+          <button class="export-btn" id="btn-export-votes" onclick="exportVotesCSV()">
+            📊 Export Votes as CSV
+          </button>
+          <button class="export-btn" id="btn-export-quiz" onclick="exportQuizCSV()">
+            🧠 Export Quiz Results as CSV
+          </button>
+          <button class="export-btn export-btn-excel" id="btn-export-excel" onclick="exportExcel()">
+            📥 Export as Excel (.xlsx)
+          </button>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- SheetJS (xlsx) — required for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>
