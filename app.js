@@ -495,13 +495,21 @@ async function finishGuess(){
     document.getElementById('lb-breakdown').innerHTML=breakdown;
     setTimeout(()=>lb.scrollIntoView({behavior:'smooth',block:'start'}),80);
   }
-  // Save to Supabase
+  // Save score to Supabase leaderboard
   if(supabaseClient&&playerName){
     try{
+      console.log('[Leaderboard] Saving:', playerName, total+'pts');
       const{data,error}=await supabaseClient
         .from('leaderboard').insert({name:playerName,score:total}).select('id');
-      if(!error&&data&&data[0])myLeaderboardId=data[0].id;
-    }catch(e){console.warn('Score save failed:',e);}
+      if(error){
+        console.error('[Leaderboard] Insert failed:', error.message, error);
+      } else if(data&&data[0]){
+        myLeaderboardId=data[0].id;
+        console.log('[Leaderboard] Saved — id:', myLeaderboardId);
+      }
+    }catch(e){console.error('[Leaderboard] Insert threw:', e);}
+  } else {
+    console.log('[Leaderboard] Skipped — supabase:', !!supabaseClient, '| name:', JSON.stringify(playerName));
   }
   loadLeaderboard();
 }
@@ -698,15 +706,17 @@ function showResult(){
   else if(a[4]===1 || a[1]===2)                               r=results[2]; // Rebel
   else                                                         r=results[3]; // Unaware
 
-  // Fire-and-forget Supabase insert — wrapped in try/catch so a synchronous
-  // SDK error can never block the result card from rendering.
-  // Also strips the "The " prefix so admin dashboard counters match correctly.
-  try {
-    if(supabaseClient)
-      supabaseClient.from('quiz_results')
-        .insert({result_type: r.title.replace(/^The /, '')})
-        .then(()=>{}, e=>console.warn('Quiz result save failed:', e));
-  } catch(e){ console.warn('Quiz result save error:', e); }
+  // Save quiz result to Supabase (fire-and-forget — never blocks UI rendering).
+  // Strips "The " so values match the CHECK constraint and admin QUIZ_TYPES keys.
+  const resultKey = r.title.replace(/^The /, '');
+  if(supabaseClient){
+    supabaseClient.from('quiz_results')
+      .insert({result_type: resultKey})
+      .then(({error}) => {
+        if(error) console.error('[Quiz] Save failed:', error.message, error);
+        else      console.log('[Quiz] Result saved:', resultKey);
+      }, e => console.error('[Quiz] Insert threw:', e));
+  }
 
   // Render result card
   const rc=document.getElementById('quiz-result');
