@@ -12,6 +12,15 @@ try {
   }
 } catch(e) { console.warn('Supabase init failed:', e); }
 
+// ── Anonymous user ID ─────────────────────────────────────────────────────────
+// Generated once on first visit with crypto.randomUUID() and stored in
+// localStorage. Used as the identifier for server-side rate limiting.
+let anonId = localStorage.getItem('anonId');
+if (!anonId) {
+  anonId = crypto.randomUUID();
+  localStorage.setItem('anonId', anonId);
+}
+
 // Fetches real vote totals from Supabase and merges them on top of the
 // simulated baseline so the bars never start at 0.
 async function loadVoteCounts() {
@@ -215,6 +224,44 @@ function triggerConfetti(){
     gravity:1,
     scalar:0.8
   }),200);
+}
+
+// ── Toast notification ─────────────────────────────────────────────────────────
+// type: 'info' (default neutral) | 'warn' (amber) | 'error' (red)
+function showToast(msg, type='info'){
+  const ex=document.querySelector('.toast');
+  if(ex)ex.remove();
+  const t=document.createElement('div');
+  t.className='toast toast-'+type;
+  t.textContent=msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3200);
+}
+
+// ── Server-side rate limit check ───────────────────────────────────────────────
+// Calls the check-rate-limit Edge Function before any Supabase insert.
+// Returns true (allowed) or false (rate limited — 429 returned).
+// Fails OPEN: if the Edge Function is down, the action is still permitted
+// so a cold-start or deploy issue never breaks the UI for students.
+async function checkRateLimit(action){
+  if(!supabaseClient)return true;   // no backend configured = no limit
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/check-rate-limit',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+SUPABASE_ANON_KEY,
+      },
+      body:JSON.stringify({user_id:anonId,action}),
+    });
+    if(res.status===429){console.log('[RateLimit] 429 for action:',action);return false;}
+    if(!res.ok)console.warn('[RateLimit] Edge Function status',res.status,'for',action);
+    return true;   // any non-429 → allow (fail open)
+  }catch(e){
+    console.warn('[RateLimit] Check failed (network issue?):', e);
+    return true;   // offline / CORS error → fail open
+  }
 }
 
 function renderGuess(){
@@ -495,19 +542,24 @@ async function finishGuess(){
     document.getElementById('lb-breakdown').innerHTML=breakdown;
     setTimeout(()=>lb.scrollIntoView({behavior:'smooth',block:'start'}),80);
   }
-  // Save score to Supabase leaderboard
+  // Save score to Supabase leaderboard (rate-limited)
   if(supabaseClient&&playerName){
-    try{
-      console.log('[Leaderboard] Saving:', playerName, total+'pts');
-      const{data,error}=await supabaseClient
-        .from('leaderboard').insert({name:playerName,score:total}).select('id');
-      if(error){
-        console.error('[Leaderboard] Insert failed:', error.message, error);
-      } else if(data&&data[0]){
-        myLeaderboardId=data[0].id;
-        console.log('[Leaderboard] Saved — id:', myLeaderboardId);
-      }
-    }catch(e){console.error('[Leaderboard] Insert threw:', e);}
+    const scoreAllowed=await checkRateLimit('leaderboard');
+    if(!scoreAllowed){
+      showToast('Score already submitted — leaderboard not updated.','warn');
+    } else {
+      try{
+        console.log('[Leaderboard] Saving:', playerName, total+'pts');
+        const{data,error}=await supabaseClient
+          .from('leaderboard').insert({name:playerName,score:total}).select('id');
+        if(error){
+          console.error('[Leaderboard] Insert failed:', error.message, error);
+        } else if(data&&data[0]){
+          myLeaderboardId=data[0].id;
+          console.log('[Leaderboard] Saved — id:', myLeaderboardId);
+        }
+      }catch(e){console.error('[Leaderboard] Insert threw:', e);}
+    }
   } else {
     console.log('[Leaderboard] Skipped — supabase:', !!supabaseClient, '| name:', JSON.stringify(playerName));
   }
@@ -582,9 +634,27 @@ function renderVotes(){
 async function castVote(qi,choice){
   if(voteAnswered[qi]!==undefined)return;
 
-  // 1. Lock in answer + persist across reloads
+  // Guard 1 — client-side 24 h timestamp check
+  // Persists independently of voteAnswered so re-voting is blocked even if
+  // the user clears voteAnswered from localStorage.
+  const tsKey='vt_'+qi;
+  const lastVote=parseInt(localStorage.getItem(tsKey)||'0');
+  if(lastVote&&Date.now()-lastVote<864e5){  // 864e5 ms = 24 hours
+    showToast('You already voted on this question');
+    return;
+  }
+
+  // Guard 2 — server-side rate limit (max 3 per question per user per hour)
+  const voteAllowed=await checkRateLimit('vote_q'+qi);
+  if(!voteAllowed){
+    showToast('Too many attempts — please wait before voting again.','warn');
+    return;
+  }
+
+  // 1. Lock in answer + persist across reloads (store 24 h timestamp too)
   voteAnswered[qi]=choice;
   try{localStorage.setItem('va',JSON.stringify(voteAnswered));}catch(e){}
+  try{localStorage.setItem(tsKey,String(Date.now()));}catch(e){}
 
   // 2. Immediate visual feedback: mark picked button, disable all buttons for this question
   const vq=document.getElementById('vq-'+qi);
@@ -706,16 +776,18 @@ function showResult(){
   else if(a[4]===1 || a[1]===2)                               r=results[2]; // Rebel
   else                                                         r=results[3]; // Unaware
 
-  // Save quiz result to Supabase (fire-and-forget — never blocks UI rendering).
-  // Strips "The " so values match the CHECK constraint and admin QUIZ_TYPES keys.
+  // Save quiz result to Supabase — rate-limited, fire-and-forget (never blocks UI).
   const resultKey = r.title.replace(/^The /, '');
   if(supabaseClient){
-    supabaseClient.from('quiz_results')
-      .insert({result_type: resultKey})
-      .then(({error}) => {
-        if(error) console.error('[Quiz] Save failed:', error.message, error);
-        else      console.log('[Quiz] Result saved:', resultKey);
-      }, e => console.error('[Quiz] Insert threw:', e));
+    checkRateLimit('quiz_result').then(allowed => {
+      if(!allowed){ console.log('[Quiz] Rate limited — result not saved'); return; }
+      supabaseClient.from('quiz_results')
+        .insert({result_type: resultKey})
+        .then(({error}) => {
+          if(error) console.error('[Quiz] Save failed:', error.message, error);
+          else      console.log('[Quiz] Result saved:', resultKey);
+        }, e => console.error('[Quiz] Insert threw:', e));
+    });
   }
 
   // Render result card
