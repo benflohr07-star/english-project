@@ -44,8 +44,12 @@ function initRealtime(){
         voteCounts[qi][ch]++;
         // Only re-render the bar row if this question's bars are already visible
         const bars=document.getElementById('bars-'+qi);
-        if(bars&&bars.classList.contains('show'))
+        if(bars&&bars.classList.contains('show')){
+          // Capture current displayed % so we animate from there, not from 0
+          const fromPct=[...bars.querySelectorAll('.bar-fill')].map(el=>parseFloat(el.style.width)||0);
           bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
+          animateBars(bars,fromPct);
+        }
       }
     })
     .subscribe();
@@ -559,6 +563,11 @@ function renderVotes(){
     }
     div.innerHTML=`<img src="${IMGS[voteImgs[i]]}" class="scene-img" alt="" aria-hidden="true"><div class="vote-body"><div class="q-label">Question ${i+1} of ${voteQs.length}</div><div style="font-size:15px;font-weight:600;color:#F1F5F9;margin-bottom:0.75rem;line-height:1.4">${q.q}</div>${btns}<div class="result-bars${voteAnswered[i]!==undefined?' show':''}" id="bars-${i}">${voteAnswered[i]!==undefined?buildBars(q,voteCounts[i]):''}</div></div>`;
     c.appendChild(div);
+    // Animate bars for questions already answered (restored from localStorage)
+    if(voteAnswered[i]!==undefined){
+      const barsEl=div.querySelector('#bars-'+i);
+      if(barsEl) animateBars(barsEl);
+    }
   });
 }
 
@@ -580,7 +589,7 @@ async function castVote(qi,choice){
     });
     // Show bars instantly with current counts; Realtime will tick them up ~100 ms later
     const bars=document.getElementById('bars-'+qi);
-    if(bars){bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);bars.classList.add('show');}
+    if(bars){bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);bars.classList.add('show');animateBars(bars);}
   }
   if(Object.keys(voteAnswered).length===voteQs.length)
     document.getElementById('vote-done').classList.add('show');
@@ -593,22 +602,54 @@ async function castVote(qi,choice){
       // Offline fallback: count locally so bars still animate
       voteCounts[qi][choice]++;
       const bars=document.getElementById('bars-'+qi);
-      if(bars)bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
+      if(bars){const fp=[...bars.querySelectorAll('.bar-fill')].map(el=>parseFloat(el.style.width)||0);bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);animateBars(bars,fp);}
     }
   }else{
     // No Supabase configured: count locally
     voteCounts[qi][choice]++;
     const bars=document.getElementById('bars-'+qi);
-    if(bars)bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);
+    if(bars){const fp=[...bars.querySelectorAll('.bar-fill')].map(el=>parseFloat(el.style.width)||0);bars.innerHTML=buildBars(voteQs[qi],voteCounts[qi]);animateBars(bars,fp);}
   }
 }
+// Animates bar widths and percentage numbers from fromPct[] → data-target over 600 ms.
+// Pass fromPct to animate from a non-zero starting point (Realtime updates).
+// Omit / pass undefined to animate from 0 (first appearance).
+function animateBars(container, fromPct) {
+  const DURATION = 600;
+  const fills = [...container.querySelectorAll('.bar-fill[data-target]')];
+  const pcts  = [...container.querySelectorAll('.bar-pct[data-target]')];
+  if (!fills.length) return;
+
+  // Ease-out cubic: fast start, gentle finish
+  const ease = t => 1 - Math.pow(1 - t, 3);
+
+  const from = fills.map((_, i) => fromPct ? (fromPct[i] ?? 0) : 0);
+  const start = performance.now();
+
+  function tick(now) {
+    const t = Math.min((now - start) / DURATION, 1);
+    const e = ease(t);
+    fills.forEach((el, i) => {
+      const end = +el.dataset.target;
+      el.style.width = ((from[i] + (end - from[i]) * e)).toFixed(2) + '%';
+    });
+    pcts.forEach((el, i) => {
+      const end = +el.dataset.target;
+      el.textContent = Math.round(from[i] + (end - from[i]) * e) + '%';
+    });
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 function buildBars(q,counts){
   const total=counts.reduce((a,b)=>a+b,0);
   const labels=q.type==='yn'?q.labels:q.opts;
   const fills=['fill-yes','fill-no','fill-opt','fill-opt'];
   return labels.map((lbl,j)=>{
     const p=total>0?Math.round((counts[j]/total)*100):0;
-    return `<div class="bar-row"><div class="bar-lbl"><span>${lbl}</span><span>${p}%</span></div><div class="bar-track"><div class="bar-fill ${fills[j]}" style="width:${p}%"></div></div></div>`;
+    // width starts at 0% — animateBars() drives it to data-target
+    return `<div class="bar-row"><div class="bar-lbl"><span>${lbl}</span><span class="bar-pct" data-target="${p}">0%</span></div><div class="bar-track"><div class="bar-fill ${fills[j]}" style="width:0%" data-target="${p}"></div></div></div>`;
   }).join('');
 }
 

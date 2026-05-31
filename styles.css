@@ -86,7 +86,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 .bar-lbl span:first-child{color:#CBD5E1;font-weight:500}
 .bar-lbl span:last-child{color:#475569}
 .bar-track{background:#0F172A;border-radius:4px;height:8px;overflow:hidden}
-.bar-fill{height:8px;border-radius:4px;transition:width 0.7s cubic-bezier(0.16,1,0.3,1)}
+.bar-fill{height:8px;border-radius:4px}
 .fill-yes{background:#059669}
 .fill-no{background:#DC2626}
 .fill-opt{background:#2563EB}
