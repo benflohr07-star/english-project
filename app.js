@@ -690,15 +690,25 @@ function prevQuiz(){if(qIdx>0){qIdx--;renderQuiz();}}
 function showResult(){
   document.getElementById('quiz-container').innerHTML='';
   const a=qAnswers;
+
+  // Determine result — ordered most-specific first; else always catches everything
   let r;
-  if(a[1]===3&&a[4]===3&&a[6]>=2)r=results[0];
-  else if((a[1]===0||a[1]===1)&&a[4]===0&&a[6]===0)r=results[1];
-  else if(a[4]===1||a[1]===2)r=results[2];
-  else r=results[3];
-  // Save quiz result to Supabase for the admin dashboard
-  if(supabaseClient)
-    supabaseClient.from('quiz_results').insert({result_type:r.title})
-      .catch(e=>console.warn('Quiz result save failed:',e));
+  if(a[1]===3 && a[4]===3 && a[6]>=2)                        r=results[0]; // Freethinker
+  else if((a[1]===0||a[1]===1) && a[4]===0 && a[6]===0)      r=results[1]; // Classic
+  else if(a[4]===1 || a[1]===2)                               r=results[2]; // Rebel
+  else                                                         r=results[3]; // Unaware
+
+  // Fire-and-forget Supabase insert — wrapped in try/catch so a synchronous
+  // SDK error can never block the result card from rendering.
+  // Also strips the "The " prefix so admin dashboard counters match correctly.
+  try {
+    if(supabaseClient)
+      supabaseClient.from('quiz_results')
+        .insert({result_type: r.title.replace(/^The /, '')})
+        .then(()=>{}, e=>console.warn('Quiz result save failed:', e));
+  } catch(e){ console.warn('Quiz result save error:', e); }
+
+  // Render result card
   const rc=document.getElementById('quiz-result');
   rc.style.display='block';
   rc.innerHTML=`<div class="result-card">
@@ -711,6 +721,8 @@ function showResult(){
       <button class="btn btn-sm" onclick="resetQuiz()"><i class="ti ti-refresh" aria-hidden="true"></i> Try again</button>
     </div>
   </div>`;
+  // Scroll the result into view so it's always visible on small screens
+  rc.scrollIntoView({behavior:'smooth', block:'start'});
   for(let i=0;i<quizQs.length;i++){const d=document.getElementById('sd-'+i);if(d)d.className='step-dot done';}
 }
 function resetQuiz(){qIdx=0;qAnswers=[];pickedOpt=null;renderQuizSteps();renderQuiz();document.getElementById('quiz-result').style.display='none';}
