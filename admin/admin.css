@@ -129,6 +129,41 @@ html, body {
   60%       { box-shadow: 0 0 0 5px rgba(52,211,153,0); }
 }
 
+/* ── Realtime status pill ────────────────────────────────────────────────── */
+.rt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(71,85,105,.2);
+  border: 1px solid rgba(71,85,105,.35);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .3s, border-color .3s, color .3s;
+}
+.rt-pill.live {
+  background: rgba(52,211,153,.12);
+  border-color: rgba(52,211,153,.3);
+  color: var(--green-lt);
+}
+.rt-pill.error {
+  background: rgba(248,113,113,.12);
+  border-color: rgba(248,113,113,.3);
+  color: var(--red);
+}
+.rt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: .5;
+}
+.rt-pill.live  .rt-dot { opacity: 1; animation: pulse 2s ease-in-out infinite; }
+.rt-pill.error .rt-dot { opacity: 1; }
+
 .reset-btn {
   padding: 7px 14px;
   border-radius: 9px;
