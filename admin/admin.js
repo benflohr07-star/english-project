@@ -108,29 +108,6 @@ async function loadVotes() {
   renderVotes();
 }
 
-// ── Helper: build one gender mini-column (Boys or Girls) ─────────────────────
-function buildGenderCol(opts, gSplit, genderKey, label, fillClass) {
-  const gTotal = opts.reduce((s, _, oi) => s + ((gSplit[oi] && gSplit[oi][genderKey]) || 0), 0);
-  const dotClass = genderKey === 'Boy' ? 'gsplit-dot-boy' : 'gsplit-dot-girl';
-  let html = '<div class="gender-split-col">';
-  html += '<div class="gender-split-head"><span class="gsplit-dot ' + dotClass + '"></span>' + label + ' (' + gTotal + ')</div>';
-  opts.forEach((opt, oi) => {
-    const n   = (gSplit[oi] && gSplit[oi][genderKey]) || 0;
-    const pct = gTotal > 0 ? Math.round((n / gTotal) * 100) : 0;
-    html += '<div class="vbar-row" style="margin-bottom:5px">';
-    html +=   '<div class="vbar-meta" style="font-size:11px">';
-    html +=     '<span class="vbar-label" style="font-size:11px">' + opt + '</span>';
-    html +=     '<span class="vbar-count">' + n + '</span>';
-    html +=   '</div>';
-    html +=   '<div class="vbar-track" style="height:4px">';
-    html +=     '<div class="vbar-fill ' + fillClass + '" style="width:' + pct + '%;height:4px"></div>';
-    html +=   '</div>';
-    html += '</div>';
-  });
-  html += '</div>';
-  return html;
-}
-
 function renderVotes() {
   const el = document.getElementById('vote-feed');
   if (!el) return;
@@ -142,43 +119,70 @@ function renderVotes() {
       const counts = voteCounts[qi] || {};
       const total  = Object.values(counts).reduce((a, b) => a + b, 0);
       grandTotal  += total;
+      const gData  = voteGender[qi] || {};
 
-      // ── Main bars (overall) ───────────────────────────────────────────────
       let bars = '';
       vq.opts.forEach((opt, oi) => {
-        const n   = counts[oi] || 0;
-        const pct = total > 0 ? Math.round((n / total) * 100) : 0;
-        bars += '<div class="vbar-row">';
-        bars +=   '<div class="vbar-meta">';
-        bars +=     '<span class="vbar-label">' + opt + '</span>';
-        bars +=     '<span class="vbar-count">' + n + ' <span class="muted">(' + pct + '%)</span></span>';
-        bars +=   '</div>';
-        bars +=   '<div class="vbar-track"><div class="vbar-fill" style="width:' + pct + '%"></div></div>';
-        bars += '</div>';
+        const n      = counts[oi] || 0;
+        const gd     = gData[oi]  || { Boy:0, Girl:0, other:0 };
+        const nBoy   = gd.Boy   || 0;
+        const nGirl  = gd.Girl  || 0;
+        const nOther = gd.other || 0;
+
+        // Each segment width = its share of THIS option's total votes.
+        // Kept to one decimal so browser can anti-alias smoothly.
+        const wBoy   = n > 0 ? +(nBoy   / n * 100).toFixed(1) : 0;
+        const wGirl  = n > 0 ? +(nGirl  / n * 100).toFixed(1) : 0;
+        // Last segment absorbs any floating-point rounding so the bar fills exactly 100 %.
+        const wOther = n > 0 ? +(100 - wBoy - wGirl).toFixed(1) : 0;
+
+        // Integer labels for display
+        const lblBoy   = Math.round(wBoy);
+        const lblGirl  = Math.round(wGirl);
+        const lblOther = Math.round(n > 0 ? nOther / n * 100 : 0);
+
+        // Build segments — skip any with 0 votes
+        let segs = '';
+        if (nBoy > 0)
+          segs += '<div class="split-seg split-seg-boy" style="width:' + wBoy + '%"'
+               +       ' title="' + nBoy + ' Boy' + (nBoy !== 1 ? 's' : '') + ' (' + lblBoy + '%)">'
+               +    '<span class="split-seg-label">' + lblBoy + '%</span>'
+               + '</div>';
+        if (nGirl > 0)
+          segs += '<div class="split-seg split-seg-girl" style="width:' + wGirl + '%"'
+               +       ' title="' + nGirl + ' Girl' + (nGirl !== 1 ? 's' : '') + ' (' + lblGirl + '%)">'
+               +    '<span class="split-seg-label">' + lblGirl + '%</span>'
+               + '</div>';
+        if (nOther > 0)
+          segs += '<div class="split-seg split-seg-other" style="width:' + wOther + '%"'
+               +       ' title="' + nOther + ' not specified (' + lblOther + '%)"></div>';
+
+        // Footer: "12 total — 7 Boys · 4 Girls · 1 n/a"
+        const footParts = [];
+        if (nBoy   > 0) footParts.push('<span class="split-foot-boy">'   + nBoy   + ' Boy'  + (nBoy   !== 1 ? 's' : '') + '</span>');
+        if (nGirl  > 0) footParts.push('<span class="split-foot-girl">'  + nGirl  + ' Girl' + (nGirl  !== 1 ? 's' : '') + '</span>');
+        if (nOther > 0) footParts.push('<span class="split-foot-other">' + nOther + ' n/a</span>');
+        const footer = n > 0
+          ? '<div class="split-bar-footer">' + n + ' total'
+            + (footParts.length ? ' — ' + footParts.join(' · ') : '') + '</div>'
+          : '';
+
+        bars += '<div class="vbar-row">'
+             +    '<div class="vbar-meta"><span class="vbar-label">' + opt + '</span></div>'
+             +    '<div class="split-bar-track">' + segs + '</div>'
+             +    footer
+             + '</div>';
       });
 
-      // ── Gender split mini-bars ────────────────────────────────────────────
-      const gSplit  = voteGender[qi] || {};
-      const boyTotal  = vq.opts.reduce((s, _, oi) => s + ((gSplit[oi] && gSplit[oi].Boy)  || 0), 0);
-      const girlTotal = vq.opts.reduce((s, _, oi) => s + ((gSplit[oi] && gSplit[oi].Girl) || 0), 0);
-
-      let genderSection = '';
-      if (boyTotal + girlTotal > 0) {
-        genderSection  = '<div class="gender-split">';
-        genderSection += buildGenderCol(vq.opts, gSplit, 'Boy',  'Boys',  'vbar-fill-boy');
-        genderSection += buildGenderCol(vq.opts, gSplit, 'Girl', 'Girls', 'vbar-fill-girl');
-        genderSection += '</div>';
-      }
-
       parts.push(
-        '<div class="vq-block">' +
-          '<div class="vq-head">' +
-            '<span class="vq-num">Q' + (qi + 1) + '</span>' +
-            '<span class="vq-text">' + vq.q + '</span>' +
-            '<span class="vq-total">' + total + '</span>' +
-          '</div>' +
-          bars + genderSection +
-        '</div>'
+        '<div class="vq-block">'
+        + '<div class="vq-head">'
+        +   '<span class="vq-num">Q' + (qi + 1) + '</span>'
+        +   '<span class="vq-text">' + vq.q + '</span>'
+        +   '<span class="vq-total">' + total + '</span>'
+        + '</div>'
+        + bars
+        + '</div>'
       );
     });
 

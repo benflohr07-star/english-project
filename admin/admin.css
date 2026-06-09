@@ -412,14 +412,48 @@ html, body {
 .gs-other { background: rgba(71,85,105,.2);   color: var(--sub);     border: 1px solid var(--border); }
 .gs-sep   { color: var(--muted); font-size: 18px; font-weight: 300; line-height: 1; }
 
-/* ── Gender split mini-bars (inside each vote question) ──────────────────── */
-.gender-split      { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-.gender-split-head { font-size: 11px; font-weight: 700; color: var(--sub); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
-.gsplit-dot        { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.gsplit-dot-boy    { background: var(--blue-lt); }
-.gsplit-dot-girl   { background: #F9A8D4; }
-.vbar-fill-boy     { background: var(--blue); }
-.vbar-fill-girl    { background: #DB2777; }
+/* ── Split-bar: gender breakdown inside each vote option ─────────────────── */
+.split-bar-track {
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  background: var(--border);
+  margin-bottom: 3px;
+}
+.split-seg {
+  height: 100%;
+  flex-shrink: 0;
+  min-width: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width .6s cubic-bezier(.16,1,.3,1);
+}
+.split-seg-boy   { background: #2563EB; }
+.split-seg-girl  { background: #7C3AED; }
+.split-seg-other { background: #475569; }
+.split-seg-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,.88);
+  white-space: nowrap;
+  padding: 0 5px;
+  pointer-events: none;
+  user-select: none;
+  /* Clipped by parent overflow when the segment is too narrow to fit */
+}
+.split-bar-footer {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.split-foot-boy   { color: #60A5FA; font-weight: 600; }
+.split-foot-girl  { color: #A78BFA; font-weight: 600; }
+.split-foot-other { color: var(--muted); }
 
 /* ── Gender pills (quiz results card) ────────────────────────────────────── */
 .quiz-gender       { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
@@ -435,5 +469,4 @@ html, body {
   .dash-main    { padding: 1rem; gap: .875rem; }
   .export-row   { flex-direction: column; }
   .export-btn   { justify-content: center; }
-  .gender-split { grid-template-columns: 1fr; }
 }
