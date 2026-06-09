@@ -369,11 +369,36 @@ html, body {
 }
 @keyframes btn-spin { to { transform: rotate(360deg); } }
 
+/* ── Gender summary (top card) ───────────────────────────────────────────── */
+.gender-summary-pills { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 0; }
+.gs-pill  { font-size: 13px; font-weight: 600; padding: 5px 13px; border-radius: 8px; }
+.gs-boy   { background: rgba(37,99,235,.15);  color: var(--blue-lt); border: 1px solid rgba(37,99,235,.25); }
+.gs-girl  { background: rgba(236,72,153,.15); color: #F9A8D4;        border: 1px solid rgba(236,72,153,.25); }
+.gs-other { background: rgba(71,85,105,.2);   color: var(--sub);     border: 1px solid var(--border); }
+.gs-sep   { color: var(--muted); font-size: 18px; font-weight: 300; line-height: 1; }
+
+/* ── Gender split mini-bars (inside each vote question) ──────────────────── */
+.gender-split      { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.gender-split-head { font-size: 11px; font-weight: 700; color: var(--sub); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+.gsplit-dot        { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.gsplit-dot-boy    { background: var(--blue-lt); }
+.gsplit-dot-girl   { background: #F9A8D4; }
+.vbar-fill-boy     { background: var(--blue); }
+.vbar-fill-girl    { background: #DB2777; }
+
+/* ── Gender pills (quiz results card) ────────────────────────────────────── */
+.quiz-gender       { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.quiz-gender-pill  { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
+.qgp-boy           { background: rgba(37,99,235,.15);  color: var(--blue-lt); }
+.qgp-girl          { background: rgba(236,72,153,.15); color: #F9A8D4; }
+.qgp-other         { background: rgba(71,85,105,.2);   color: var(--muted); }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 500px) {
-  .dash-header { flex-wrap: wrap; gap: 8px; }
-  .big-num     { font-size: 56px; }
-  .dash-main   { padding: 1rem; gap: .875rem; }
-  .export-row  { flex-direction: column; }
-  .export-btn  { justify-content: center; }
+  .dash-header  { flex-wrap: wrap; gap: 8px; }
+  .big-num      { font-size: 56px; }
+  .dash-main    { padding: 1rem; gap: .875rem; }
+  .export-row   { flex-direction: column; }
+  .export-btn   { justify-content: center; }
+  .gender-split { grid-template-columns: 1fr; }
 }

@@ -29,9 +29,12 @@ const QUIZ_TYPES = [
 ];
 
 // ── State ───────────────────────────────────────────────────────────────────
-let voteCounts  = {};                         // { qi: { choice: count } }
-let quizCounts  = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
-let lbRows      = [];
+let voteCounts       = {};   // { qi: { choice: count } }
+let voteGender       = {};   // { qi: { choice: { Boy:n, Girl:n, other:n } } }
+let quizCounts       = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
+let quizGender       = { Freethinker:{Boy:0,Girl:0,other:0}, Classic:{Boy:0,Girl:0,other:0}, Rebel:{Boy:0,Girl:0,other:0}, Unaware:{Boy:0,Girl:0,other:0} };
+let participantGender= { Boy:0, Girl:0, other:0 };
+let lbRows           = [];
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 function checkPassword() {
@@ -66,11 +69,18 @@ async function initDashboard() {
 
 // ── Votes ────────────────────────────────────────────────────────────────────
 async function loadVotes() {
-  const { data } = await db.from('votes').select('question_id, choice');
+  const { data } = await db.from('votes').select('question_id, choice, gender');
   voteCounts = {};
-  (data || []).forEach(({ question_id, choice }) => {
+  voteGender = {};
+  (data || []).forEach(({ question_id, choice, gender }) => {
+    // Totals
     if (!voteCounts[question_id]) voteCounts[question_id] = {};
     voteCounts[question_id][choice] = (voteCounts[question_id][choice] || 0) + 1;
+    // Gender split
+    const g = gender || 'other';
+    if (!voteGender[question_id]) voteGender[question_id] = {};
+    if (!voteGender[question_id][choice]) voteGender[question_id][choice] = { Boy:0, Girl:0, other:0 };
+    voteGender[question_id][choice][g]++;
   });
   renderVotes();
 }
@@ -85,6 +95,7 @@ function renderVotes() {
     const total  = Object.values(counts).reduce((a, b) => a + b, 0);
     grandTotal  += total;
 
+    // ── Main bars (overall) ─────────────────────────────────────────────────
     const bars = vq.opts.map((opt, oi) => {
       const n   = counts[oi] || 0;
       const pct = total > 0 ? Math.round((n / total) * 100) : 0;
@@ -97,13 +108,50 @@ function renderVotes() {
       </div>`;
     }).join('');
 
+    // ── Gender split mini-bars ───────────────────────────────────────────────
+    const gSplit = voteGender[qi] || {};
+    const boyTotal  = vq.opts.reduce((s,_,oi) => s + (gSplit[oi]?.Boy  || 0), 0);
+    const girlTotal = vq.opts.reduce((s,_,oi) => s + (gSplit[oi]?.Girl || 0), 0);
+
+    const genderSection = (boyTotal + girlTotal > 0) ? `
+    <div class="gender-split">
+      <div class="gender-split-col">
+        <div class="gender-split-head"><span class="gsplit-dot gsplit-dot-boy"></span>Boys (${boyTotal})</div>
+        ${vq.opts.map((opt, oi) => {
+          const n   = gSplit[oi]?.Boy || 0;
+          const pct = boyTotal > 0 ? Math.round((n / boyTotal) * 100) : 0;
+          return `<div class="vbar-row" style="margin-bottom:5px">
+            <div class="vbar-meta" style="font-size:11px">
+              <span class="vbar-label" style="font-size:11px">${opt}</span>
+              <span class="vbar-count">${n}</span>
+            </div>
+            <div class="vbar-track" style="height:4px"><div class="vbar-fill vbar-fill-boy" style="width:${pct}%;height:4px"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="gender-split-col">
+        <div class="gender-split-head"><span class="gsplit-dot gsplit-dot-girl"></span>Girls (${girlTotal})</div>
+        ${vq.opts.map((opt, oi) => {
+          const n   = gSplit[oi]?.Girl || 0;
+          const pct = girlTotal > 0 ? Math.round((n / girlTotal) * 100) : 0;
+          return `<div class="vbar-row" style="margin-bottom:5px">
+            <div class="vbar-meta" style="font-size:11px">
+              <span class="vbar-label" style="font-size:11px">${opt}</span>
+              <span class="vbar-count">${n}</span>
+            </div>
+            <div class="vbar-track" style="height:4px"><div class="vbar-fill vbar-fill-girl" style="width:${pct}%;height:4px"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
     return `<div class="vq-block">
       <div class="vq-head">
         <span class="vq-num">Q${qi + 1}</span>
         <span class="vq-text">${vq.q}</span>
         <span class="vq-total">${total}</span>
       </div>
-      ${bars}
+      ${bars}${genderSection}
     </div>`;
   }).join('');
 
@@ -113,12 +161,20 @@ function renderVotes() {
 
 // ── Quiz Results ─────────────────────────────────────────────────────────────
 async function loadQuizResults() {
-  const { data } = await db.from('quiz_results').select('result_type');
-  quizCounts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
-  (data || []).forEach(({ result_type }) => {
-    if (quizCounts[result_type] !== undefined) quizCounts[result_type]++;
+  const { data } = await db.from('quiz_results').select('result_type, gender');
+  quizCounts  = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
+  quizGender  = { Freethinker:{Boy:0,Girl:0,other:0}, Classic:{Boy:0,Girl:0,other:0}, Rebel:{Boy:0,Girl:0,other:0}, Unaware:{Boy:0,Girl:0,other:0} };
+  participantGender = { Boy:0, Girl:0, other:0 };
+  (data || []).forEach(({ result_type, gender }) => {
+    if (quizCounts[result_type] !== undefined) {
+      quizCounts[result_type]++;
+      const g = gender || 'other';
+      quizGender[result_type][g]++;
+      participantGender[g]++;
+    }
   });
   renderQuizResults();
+  renderGenderSummary();
 }
 
 function renderQuizResults() {
@@ -128,7 +184,15 @@ function renderQuizResults() {
 
   el.innerHTML = QUIZ_TYPES.map(({ key, icon, color }) => {
     const n   = quizCounts[key];
+    const gd  = quizGender[key] || { Boy:0, Girl:0, other:0 };
     const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+
+    const genderPills = n > 0 ? `<div class="quiz-gender">
+      ${gd.Boy  > 0 ? `<span class="quiz-gender-pill qgp-boy">👦 ${gd.Boy} Boy${gd.Boy!==1?'s':''}</span>` : ''}
+      ${gd.Girl > 0 ? `<span class="quiz-gender-pill qgp-girl">👧 ${gd.Girl} Girl${gd.Girl!==1?'s':''}</span>` : ''}
+      ${gd.other> 0 ? `<span class="quiz-gender-pill qgp-other">— ${gd.other} not specified</span>` : ''}
+    </div>` : '';
+
     return `<div class="quiz-row">
       <div class="quiz-row-head">
         <span class="quiz-icon">${icon}</span>
@@ -139,11 +203,26 @@ function renderQuizResults() {
       <div class="vbar-track">
         <div class="vbar-fill" style="width:${pct}%;background:${color}"></div>
       </div>
+      ${genderPills}
     </div>`;
   }).join('');
 
   const badge = document.getElementById('quiz-total-badge');
   if (badge) badge.textContent = total + ' result' + (total !== 1 ? 's' : '');
+}
+
+function renderGenderSummary() {
+  const el = document.getElementById('gender-summary');
+  if (!el) return;
+  const { Boy, Girl, other } = participantGender;
+  const total = Boy + Girl + other;
+  el.innerHTML = total === 0
+    ? '<span class="muted">No quiz completions yet</span>'
+    : `<span class="gs-pill gs-boy">👦 ${Boy} Boy${Boy!==1?'s':''}</span>
+       <span class="gs-sep">·</span>
+       <span class="gs-pill gs-girl">👧 ${Girl} Girl${Girl!==1?'s':''}</span>
+       <span class="gs-sep">·</span>
+       <span class="gs-pill gs-other">${other} not specified</span>`;
 }
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
@@ -199,11 +278,16 @@ function initRealtime() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' }, ({ new: row }) => {
       const qi  = row.question_id;
       const ch  = row.choice;
+      const g   = row.gender || 'other';
       if (!voteCounts[qi]) voteCounts[qi] = {};
       voteCounts[qi][ch] = (voteCounts[qi][ch] || 0) + 1;
+      if (!voteGender[qi]) voteGender[qi] = {};
+      if (!voteGender[qi][ch]) voteGender[qi][ch] = { Boy:0, Girl:0, other:0 };
+      voteGender[qi][ch][g]++;
       renderVotes();
       const opt  = VOTE_META[qi]?.opts[ch] ?? `Option ${ch}`;
-      pushEvent(`<span class="ev-tag ev-vote">Vote</span> Q${qi + 1} → <strong>${opt}</strong>`);
+      const gTag = row.gender ? ` <span class="muted">(${row.gender})</span>` : '';
+      pushEvent(`<span class="ev-tag ev-vote">Vote</span> Q${qi + 1} → <strong>${opt}</strong>${gTag}`);
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'votes' }, () => {
       loadVotes();
@@ -214,10 +298,18 @@ function initRealtime() {
   db.channel('admin:quiz')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quiz_results' }, ({ new: row }) => {
       const t = row.result_type;
-      if (quizCounts[t] !== undefined) quizCounts[t]++;
-      renderQuizResults();
+      const g = row.gender || 'other';
+      if (quizCounts[t] !== undefined) {
+        quizCounts[t]++;
+        if (!quizGender[t]) quizGender[t] = { Boy:0, Girl:0, other:0 };
+        quizGender[t][g]++;
+        participantGender[g] = (participantGender[g] || 0) + 1;
+        renderQuizResults();
+        renderGenderSummary();
+      }
       const type = QUIZ_TYPES.find(x => x.key === t);
-      pushEvent(`<span class="ev-tag ev-quiz">Quiz</span> ${type?.icon ?? ''} <strong>${t}</strong>`);
+      const gTag = row.gender ? ` <span class="muted">(${row.gender})</span>` : '';
+      pushEvent(`<span class="ev-tag ev-quiz">Quiz</span> ${type?.icon ?? ''} <strong>${t}</strong>${gTag}`);
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'quiz_results' }, () => {
       loadQuizResults();
@@ -259,11 +351,15 @@ async function resetAll() {
     const { error } = await db.rpc('reset_all', { admin_pass: pw });
     if (error) throw error;
     // Clear local state
-    voteCounts = {};
-    quizCounts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
-    lbRows = [];
+    voteCounts        = {};
+    voteGender        = {};
+    quizCounts        = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
+    quizGender        = { Freethinker:{Boy:0,Girl:0,other:0}, Classic:{Boy:0,Girl:0,other:0}, Rebel:{Boy:0,Girl:0,other:0}, Unaware:{Boy:0,Girl:0,other:0} };
+    participantGender = { Boy:0, Girl:0, other:0 };
+    lbRows            = [];
     renderVotes();
     renderQuizResults();
+    renderGenderSummary();
     renderLeaderboard();
     pushEvent('<span class="ev-tag ev-reset">Reset</span> All data cleared by admin');
   } catch (e) {
@@ -325,16 +421,17 @@ async function exportVotesCSV() {
   try {
     const { data, error } = await db
       .from('votes')
-      .select('question_id, choice, created_at')
+      .select('question_id, choice, gender, created_at')
       .order('created_at', { ascending: true });
     if (error) throw error;
 
-    const headers = ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Timestamp (UTC)'];
+    const headers = ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Gender', 'Timestamp (UTC)'];
     const rows = data.map(r => [
       r.question_id + 1,
       VOTE_META[r.question_id]?.q     ?? `Question ${r.question_id + 1}`,
       r.choice + 1,
       VOTE_META[r.question_id]?.opts[r.choice] ?? `Option ${r.choice + 1}`,
+      r.gender ?? 'not specified',
       r.created_at,
     ]);
 
@@ -355,21 +452,31 @@ async function exportQuizCSV() {
   try {
     const { data, error } = await db
       .from('quiz_results')
-      .select('result_type, created_at')
+      .select('result_type, gender, created_at')
       .order('created_at', { ascending: true });
     if (error) throw error;
 
-    // Count per type for the summary block
-    const counts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
-    data.forEach(r => { if (r.result_type in counts) counts[r.result_type]++; });
+    // Count per type + gender for the summary block
+    const counts = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
+    const gByType = { Freethinker:{Boy:0,Girl:0,other:0}, Classic:{Boy:0,Girl:0,other:0}, Rebel:{Boy:0,Girl:0,other:0}, Unaware:{Boy:0,Girl:0,other:0} };
+    data.forEach(r => {
+      if (r.result_type in counts) {
+        counts[r.result_type]++;
+        const g = r.gender || 'other';
+        gByType[r.result_type][g]++;
+      }
+    });
 
-    const headers  = ['Result Type', 'Timestamp (UTC)'];
-    const dataRows = data.map(r => [r.result_type, r.created_at]);
+    const headers  = ['Result Type', 'Gender', 'Timestamp (UTC)'];
+    const dataRows = data.map(r => [r.result_type, r.gender ?? 'not specified', r.created_at]);
     const summary  = [
       [],
-      ['── Summary ──', ''],
-      ...Object.entries(counts).map(([type, n]) => [type, n]),
-      ['Total', data.length],
+      ['── Summary ──', '', ''],
+      ...Object.entries(counts).map(([type, n]) => {
+        const gd = gByType[type];
+        return [type, n, `${gd.Boy} Boys / ${gd.Girl} Girls / ${gd.other} not specified`];
+      }),
+      ['Total', data.length, ''],
     ];
 
     const date = new Date().toISOString().slice(0, 10);
@@ -394,10 +501,10 @@ async function exportExcel() {
     // Fetch all three datasets in parallel
     const [votesRes, quizRes, lbRes] = await Promise.all([
       db.from('votes')
-        .select('question_id, choice, created_at')
+        .select('question_id, choice, gender, created_at')
         .order('created_at', { ascending: true }),
       db.from('quiz_results')
-        .select('result_type, created_at')
+        .select('result_type, gender, created_at')
         .order('created_at', { ascending: true }),
       db.from('leaderboard')
         .select('name, score, created_at')
@@ -411,28 +518,39 @@ async function exportExcel() {
 
     // ── Sheet 1: Votes ────────────────────────────────────────────────────────
     const votesSheet = [
-      ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Timestamp (UTC)'],
+      ['Question #', 'Question Text', 'Choice #', 'Answer Label', 'Gender', 'Timestamp (UTC)'],
       ...votesRes.data.map(r => [
         r.question_id + 1,
         VOTE_META[r.question_id]?.q              ?? `Question ${r.question_id + 1}`,
         r.choice + 1,
         VOTE_META[r.question_id]?.opts[r.choice] ?? `Option ${r.choice + 1}`,
+        r.gender ?? 'not specified',
         r.created_at,
       ]),
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(votesSheet), 'Votes');
 
     // ── Sheet 2: Quiz Results (with summary block) ────────────────────────────
-    const qCounts = { Freethinker: 0, Classic: 0, Rebel: 0, Unaware: 0 };
-    quizRes.data.forEach(r => { if (r.result_type in qCounts) qCounts[r.result_type]++; });
+    const qCounts  = { Freethinker:0, Classic:0, Rebel:0, Unaware:0 };
+    const qGByType = { Freethinker:{Boy:0,Girl:0,other:0}, Classic:{Boy:0,Girl:0,other:0}, Rebel:{Boy:0,Girl:0,other:0}, Unaware:{Boy:0,Girl:0,other:0} };
+    quizRes.data.forEach(r => {
+      if (r.result_type in qCounts) {
+        qCounts[r.result_type]++;
+        const g = r.gender || 'other';
+        qGByType[r.result_type][g]++;
+      }
+    });
 
     const quizSheet = [
-      ['Result Type', 'Timestamp (UTC)'],
-      ...quizRes.data.map(r => [r.result_type, r.created_at]),
+      ['Result Type', 'Gender', 'Timestamp (UTC)'],
+      ...quizRes.data.map(r => [r.result_type, r.gender ?? 'not specified', r.created_at]),
       [],
-      ['── Summary ──', ''],
-      ...Object.entries(qCounts).map(([type, n]) => [type, n]),
-      ['Total', quizRes.data.length],
+      ['── Summary ──', '', ''],
+      ...Object.entries(qCounts).map(([type, n]) => {
+        const gd = qGByType[type];
+        return [type, n, `${gd.Boy} Boys / ${gd.Girl} Girls / ${gd.other} not specified`];
+      }),
+      ['Total', quizRes.data.length, ''],
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(quizSheet), 'Quiz Results');
 

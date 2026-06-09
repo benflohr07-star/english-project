@@ -186,6 +186,10 @@ let gScores=[];          // points earned per question (index = question index)
 let gDragScore=0;        // running tally for the current drag question
 let myLeaderboardId=null;// Supabase row id of this session's leaderboard entry
 let playerName=localStorage.getItem('guestName')||'';
+// Gender — 'Boy', 'Girl', or null (prefer not to say). genderDecided tracks
+// whether the user has made any choice (including "skip").
+let userGender=null,genderDecided=false;
+{const _g=localStorage.getItem('user_gender');if(_g!==null){genderDecided=true;userGender=_g==='skip'?null:_g;}}
 let voteCounts={};
 // Persist voted state across page refreshes
 let voteAnswered={};
@@ -265,7 +269,7 @@ async function checkRateLimit(action){
 }
 
 function renderGuess(){
-  // ── Name prompt: shown once before the first question ──────────────────────
+  // ── Step 1: Name prompt ────────────────────────────────────────────────────
   if(!playerName){
     document.getElementById('g-prog').style.width='0%';
     document.getElementById('g-counter').textContent='Enter your name to start';
@@ -278,10 +282,36 @@ function renderGuess(){
         <input type="text" id="name-input" placeholder="First name…" maxlength="20" autocomplete="off"
           style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid #334155;background:#0F172A;color:#F1F5F9;font-size:14px;font-family:inherit;outline:none"
           onkeydown="if(event.key==='Enter')saveName()">
-        <button class="btn btn-blue" onclick="saveName()">Let's go <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+        <button class="btn btn-blue" onclick="saveName()">Continue <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
       </div>
     </div></div>`;
     setTimeout(()=>{const i=document.getElementById('name-input');if(i)i.focus();},60);
+    return;
+  }
+  // ── Step 2: Gender selection ───────────────────────────────────────────────
+  if(!genderDecided){
+    document.getElementById('g-prog').style.width='0%';
+    document.getElementById('g-counter').textContent='One more thing…';
+    document.getElementById('g-next-btn').style.display='none';
+    document.getElementById('guess-container').innerHTML=`<div class="card glow-blue"><div class="card-body">
+      <div class="q-label">Almost there, ${playerName}</div>
+      <div class="q-text">How do you identify?</div>
+      <p style="font-size:13px;color:#64748B;line-height:1.6;margin-bottom:1.5rem">Used only for anonymous class statistics.</p>
+      <div class="gender-cards">
+        <button class="gender-card" id="gc-boy" onclick="selectGenderCard('Boy')">
+          <span class="gender-icon">👦</span>
+          <span class="gender-label">Boy</span>
+        </button>
+        <button class="gender-card" id="gc-girl" onclick="selectGenderCard('Girl')">
+          <span class="gender-icon">👧</span>
+          <span class="gender-label">Girl</span>
+        </button>
+      </div>
+      <button class="btn btn-blue btn-full" id="gc-confirm" onclick="confirmGender()" disabled style="margin-top:1rem">Let's go <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+      <p style="text-align:center;margin-top:.875rem">
+        <button onclick="saveGender(null)" style="background:none;border:none;font-family:inherit;font-size:12px;color:#475569;cursor:pointer;text-decoration:underline;-webkit-tap-highlight-color:transparent">Prefer not to say</button>
+      </p>
+    </div></div>`;
     return;
   }
   // ──────────────────────────────────────────────────────────────────────────
@@ -359,6 +389,24 @@ function saveName(){
   if(!n)return;
   playerName=n;
   localStorage.setItem('guestName',n);
+  renderGuess();
+}
+
+let _pendingGender=null;
+function selectGenderCard(g){
+  _pendingGender=g;
+  document.querySelectorAll('.gender-card').forEach(c=>c.classList.remove('selected'));
+  const card=document.getElementById('gc-'+g.toLowerCase());
+  if(card)card.classList.add('selected');
+  const btn=document.getElementById('gc-confirm');
+  if(btn)btn.disabled=false;
+}
+function confirmGender(){saveGender(_pendingGender);}
+function saveGender(g){
+  localStorage.setItem('user_gender',g??'skip');
+  genderDecided=true;
+  userGender=g;
+  _pendingGender=null;
   renderGuess();
 }
 
@@ -674,7 +722,7 @@ async function castVote(qi,choice){
 
   // 3. Send to Supabase — the Realtime subscription handles updating counts for everyone
   if(supabaseClient){
-    try{await supabaseClient.from('votes').insert({question_id:qi,choice});}
+    try{await supabaseClient.from('votes').insert({question_id:qi,choice,gender:userGender});}
     catch(e){
       console.warn('Vote insert failed, falling back to local count:',e);
       // Offline fallback: count locally so bars still animate
@@ -782,10 +830,10 @@ function showResult(){
     checkRateLimit('quiz_result').then(allowed => {
       if(!allowed){ console.log('[Quiz] Rate limited — result not saved'); return; }
       supabaseClient.from('quiz_results')
-        .insert({result_type: resultKey})
+        .insert({result_type: resultKey, gender: userGender})
         .then(({error}) => {
           if(error) console.error('[Quiz] Save failed:', error.message, error);
-          else      console.log('[Quiz] Result saved:', resultKey);
+          else      console.log('[Quiz] Result saved:', resultKey, '| gender:', userGender);
         }, e => console.error('[Quiz] Insert threw:', e));
     });
   }
